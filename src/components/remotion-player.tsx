@@ -125,7 +125,7 @@ const VideoComposition: React.FC<{
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <OffthreadVideo
         src={videoUrl}
-        trimBefore={(cropTimeMs * 30) / 1000}
+        startFrom={(cropTimeMs * 30) / 1000}
         // startFrom={0}
         // trimBefore={0}
         style={{
