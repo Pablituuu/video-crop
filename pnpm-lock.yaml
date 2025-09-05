@@ -15,7 +15,7 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3(@types/react@19.1.12)(react@19.1.1)
       '@remotion/player':
-        specifier: ^4.0.221
+        specifier: 4.0.341
         version: 4.0.341(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@tailwindcss/vite':
         specifier: ^4.1.12
@@ -42,8 +42,8 @@ importers:
         specifier: ^19.1.1
         version: 19.1.1(react@19.1.1)
       remotion:
-        specifier: 4.0.221
-        version: 4.0.221(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 4.0.341
+        version: 4.0.341(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.3.1
@@ -1609,12 +1609,6 @@ packages:
   readable-stream@3.6.2:
     resolution: {integrity: sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==}
     engines: {node: '>= 6'}
-
-  remotion@4.0.221:
-    resolution: {integrity: sha512-QlKRZIh6KXrjrVlo+1Gqbry8HWd79gA3jjOposSxaveTyWwQx5rQxm8Q4NhqYEK8rp+otA8KU6Hdgmed6b/oZg==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
 
   remotion@4.0.341:
     resolution: {integrity: sha512-9W5+30n4Bap/TM3kMChKyxP1l67RW1+/knmsElFqNeCIkp/euaBtLGzv5WPjoE/A7gpH2YIrQGiVZ/PwA5RuOA==}
@@ -3482,11 +3476,6 @@ snapshots:
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
     optional: true
-
-  remotion@4.0.221(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
-    dependencies:
-      react: 19.1.1
-      react-dom: 19.1.1(react@19.1.1)
 
   remotion@4.0.341(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
     dependencies:
