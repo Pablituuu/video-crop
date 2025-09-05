@@ -47,12 +47,13 @@ export const changeObjectWidth: TransformActionHandler = (
     const cropObject = target as VideoCropRect
     const canvas = target.canvas as CanvasVideoCrop
     const maxWidth = cropObject.maxWidth || cropObject.initialWidth
-
+    if (transform.corner === "ml") {
+      canvas.playerRef?.seekTo(0)
+    }
     const diffPos = oldWidth - newWidth;
     const nextLeft = target.left + (transform.corner === "mr" ? 0 : diffPos);
 
     if (nextLeft < 0 && newWidth < maxWidth) {
-      console.log({ nextLeft, newWidth, maxWidth, left: target.left })
       target.set("left", 0)
       target.set("width", oldWidth)
       if (target.left !== 0) {
@@ -60,7 +61,6 @@ export const changeObjectWidth: TransformActionHandler = (
       }
       return false
     } else if (nextLeft < 0 && newWidth >= maxWidth) {
-      console.log("mr2")
       target.set("left", 0)
       target.set("width", maxWidth)
       if (target.left !== 0) {
@@ -69,13 +69,11 @@ export const changeObjectWidth: TransformActionHandler = (
       return false
     }
     if (transform.corner === "mr") {
-      console.log("mr")
       if (newWidth > maxWidth) {
         target.set("width", maxWidth)
         return false
       }
     } else if (transform.corner === "ml") {
-      console.log("else if")
       if (newWidth > maxWidth) {
         const diffWidth = maxWidth - oldWidth
         target.set("width", maxWidth)
@@ -83,7 +81,6 @@ export const changeObjectWidth: TransformActionHandler = (
         return false
       }
     }
-    console.log("regular")
     target.set('width', Math.max(newWidth, 1));
     const factorWidth = cropObject.initialWidth / nextLeft
     canvas.setCropTimeMs(canvas.totalDurationMs / factorWidth)

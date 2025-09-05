@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
-import { Rect, Line } from "fabric";
+import { Rect } from "fabric";
 import { VideoThumbnailRect } from "./video-thumbnail-rect";
 import { VideoCropRect } from "./video-crop-rect";
+import { VideoCropMask } from "./video-crop-mask";
 import { CanvasVideoCrop } from "./canvas-video-crop";
 import { usePlayerStore } from "@/store/use-store";
+import { useCurrentPlayerFrame } from "@/assets/hooks/use-current-frame";
 
 interface TimelineCanvasProps {
   videoFile: File | null;
@@ -23,7 +25,10 @@ export function TimelineCanvas({
     fps,
     loadVideo,
     setCropTimeMs,
+    totalDurationMs,
+    cropTimeMs,
   } = usePlayerStore();
+  const currentFrame = useCurrentPlayerFrame(playerRef!);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -101,21 +106,50 @@ export function TimelineCanvas({
           // Sync with VideoThumbnailRect dimensions
           videoCropRect.syncWithVideoThumbnailRect(videoThumbnailRect);
 
+          // Create and add mask
+          const mask = new VideoCropMask({
+            maskColor: "rgba(255, 0, 0, 0.7)",
+          });
+          mask.set({
+            left: 0,
+            top: 0,
+            width: canvasWidth,
+            height: 80,
+          });
+          mask.updateCropArea(
+            videoCropRect.left || 0,
+            videoCropRect.top || 0,
+            videoCropRect.width || 0,
+            videoCropRect.height || 0
+          );
+
+          canvas.add(mask);
           canvas.add(videoCropRect);
+
+          const updateMask = () => {
+            mask.updateCropArea(
+              videoCropRect.left || 0,
+              videoCropRect.top || 0,
+              videoCropRect.width || 0,
+              videoCropRect.height || 0
+            );
+          };
+
+          videoCropRect.on("moving", () => {
+            updateMask();
+          });
+          videoCropRect.on("resizing", () => {
+            updateMask();
+          });
+
+          videoCropRect.on("modified", () => {
+            updateMask();
+          });
 
           canvas.renderAll();
         })
         .catch((_) => {});
     }
-
-    // Create playhead (red line)
-    const playhead = new Line([0, 0, 0, 80], {
-      strokeWidth: 2,
-      selectable: false,
-      evented: false,
-    });
-
-    canvas.add(playhead);
 
     // Handle canvas resize
     const handleResize = () => {
@@ -150,21 +184,29 @@ export function TimelineCanvas({
         videoCropRect.syncWithVideoThumbnailRect(videoThumbnailRect);
       }
 
+      // Update mask if it exists
+      const mask = canvas
+        .getObjects()
+        .find((obj) => obj instanceof VideoCropMask) as VideoCropMask;
+      if (mask) {
+        mask.set({
+          width: newCanvasWidth,
+          height: 80,
+        });
+        if (videoCropRect) {
+          mask.updateCropArea(
+            videoCropRect.left || 0,
+            videoCropRect.top || 0,
+            videoCropRect.width || 0,
+            videoCropRect.height || 0
+          );
+        }
+      }
+
       canvas.renderAll();
     };
 
     window.addEventListener("resize", handleResize);
-
-    // Handle mouse clicks on timeline
-    canvas.on("mouse:down", (event) => {
-      if (event.target === timelineObject) {
-        const pointer = canvas.getPointer(event.e);
-        // Move playhead
-        playhead.set("x1", pointer.x);
-        playhead.set("x2", pointer.x);
-        canvas.renderAll();
-      }
-    });
 
     return () => {
       window.removeEventListener("resize", handleResize);
@@ -172,13 +214,40 @@ export function TimelineCanvas({
     };
   }, [videoFile, playerRef, loadVideo]);
 
+  // Calculate playhead position based on current frame
+  const totalFrames =
+    totalDurationMs > 0 ? Math.floor((totalDurationMs * fps) / 1000) : 1;
+  const playheadPosition =
+    totalFrames > 0
+      ? (currentFrame * (canvasRef?.current?.parentElement?.clientWidth || 0)) /
+        totalFrames
+      : 0;
+  const factorCropFrames = (cropTimeMs * fps) / 1000;
+  const playheadPositionCrop =
+    (factorCropFrames * (canvasRef?.current?.parentElement?.clientWidth || 0)) /
+    totalFrames;
+
   if (!playerRef) {
     return <div>No player ref</div>;
   }
 
   return (
     <div className="w-full bg-gray-800 p-2" id="canvas-container">
-      <canvas ref={canvasRef} className="w-full" style={{ height: "80px" }} />
+      <div className="relative cursor-pointer">
+        <canvas ref={canvasRef} className="w-full" style={{ height: "80px" }} />
+
+        {/* HTML Playhead */}
+        <div
+          className="absolute top-2 bottom-2 w-px bg-red-500 pointer-events-none z-10"
+          style={{
+            left: `calc(${playheadPosition + playheadPositionCrop}px + 2px)`,
+            // transform: "translateX(50%)",
+          }}
+        >
+          {/* Playhead handle */}
+          <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
+        </div>
+      </div>
     </div>
   );
 }

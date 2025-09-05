@@ -8,6 +8,7 @@ import { usePlayerStore } from "./store/use-store";
 function App() {
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const { playerRef } = usePlayerStore();
+
   const handleVideoSelect = (file: File | null) => {
     setSelectedVideo(file);
   };

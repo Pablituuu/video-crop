@@ -6,6 +6,8 @@ export interface RemotionPlayerRef {
     setPlayerRef: (ref: PlayerRef | null) => void;
     durationMs: number;
     setDurationMs: (duration: number) => void;
+    totalDurationMs: number;
+    setTotalDurationMs: (duration: number) => void;
     fps: number;
     setFps: (fps: number) => void
     loadVideo: boolean;
@@ -18,6 +20,8 @@ interface PlayerStore {
     playerRef: PlayerRef | null;
     setPlayerRef: (ref: PlayerRef | null) => void;
     durationMs: number;
+    totalDurationMs: number;
+    setTotalDurationMs: (duration: number) => void;
     setDurationMs: (duration: number) => void;
     fps: number;
     setFps: (fps: number) => void
@@ -35,6 +39,10 @@ export const usePlayerStore = create<PlayerStore>((set: any) => ({
     durationMs: 0,
     setDurationMs: (duration: number) => {
         set({ durationMs: duration });
+    },
+    totalDurationMs: 0,
+    setTotalDurationMs: (duration: number) => {
+        set({ totalDurationMs: duration });
     },
     fps: 30,
     setFps: (fps: number) => {

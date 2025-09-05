@@ -10,7 +10,7 @@ interface VideoUploadProps {
 
 export function VideoUpload({ onVideoSelect, selectedFile }: VideoUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { setDurationMs, setLoadVideo } = usePlayerStore();
+  const { setDurationMs, setLoadVideo, setTotalDurationMs } = usePlayerStore();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -23,6 +23,7 @@ export function VideoUpload({ onVideoSelect, selectedFile }: VideoUploadProps) {
     videoElement.onloadedmetadata = () => {
       window.URL.revokeObjectURL(videoElement.src); // liberar memoria
       setDurationMs(videoElement.duration * 1000); // duración en segundos
+      setTotalDurationMs(videoElement.duration * 1000);
       setLoadVideo(true);
     };
 
