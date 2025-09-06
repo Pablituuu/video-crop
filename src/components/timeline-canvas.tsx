@@ -63,7 +63,7 @@ export function TimelineCanvas({
       top: 0,
       width: canvasWidth,
       height: 80,
-      fill: "#374151", // gray-700
+      fill: "#000", // gray-700
       stroke: "#6b7280", // gray-500
       strokeWidth: 1,
       selectable: false,
@@ -77,16 +77,16 @@ export function TimelineCanvas({
     if (videoFile) {
       // Create VideoThumbnailRect and wait for thumbnails to be generated
       VideoThumbnailRect.createWithThumbnails({
-        left: 0, // Comenzar desde el borde izquierdo
-        top: 0, // Comenzar desde el borde superior
-        width: canvasWidth, // Usar el ancho completo del canvas
-        height: 80, // Usar la altura completa del canvas
-        fill: "rgba(55, 65, 81, 0.3)", // Fondo semi-transparente
+        left: 0, // Start from left edge
+        top: 0, // Start from top edge
+        width: canvasWidth, // Use full canvas width
+        height: 80, // Use full canvas height
+        fill: "rgba(55, 65, 81, 0.3)", // Semi-transparent background
         stroke: "#3b82f6",
         strokeWidth: 2,
         videoFile: videoFile,
-        thumbnailCount: 16, // Más miniaturas para el ancho completo
-        thumbnailSize: 120,
+        // thumbnailCount and thumbnailSize are calculated automatically
+        // based on video aspect ratio and rectangle width
       })
         .then((videoThumbnailRect) => {
           // Add VideoThumbnailRect to canvas (background layer)
@@ -172,7 +172,7 @@ export function TimelineCanvas({
         // Update the width of VideoThumbnailRect
         videoThumbnailRect.set("width", newCanvasWidth);
 
-        // Update thumbnail layout without regenerating from video
+        // Update thumbnail layout - this will automatically regenerate if needed
         videoThumbnailRect.updateThumbnailLayout();
       }
 

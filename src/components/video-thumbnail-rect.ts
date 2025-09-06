@@ -23,6 +23,10 @@ export class VideoThumbnailRect extends Rect {
     private thumbnails: HTMLCanvasElement[] = [];
     private isGenerating: boolean = false;
     private generationPromise: Promise<void> | null = null;
+    private videoAspectRatio: number = 16 / 9; // Video aspect ratio
+    private videoWidth: number = 0;
+    private videoHeight: number = 0;
+    private blackThumbnail: HTMLCanvasElement | null = null;
 
     constructor(options: VideoThumbnailRectOptions = {}) {
         super({
@@ -53,7 +57,7 @@ export class VideoThumbnailRect extends Rect {
     }
 
     /**
-     * Método estático para crear y generar miniaturas de forma asíncrona
+     * Static method to create and generate thumbnails asynchronously
      */
     static async createWithThumbnails(
         options: VideoThumbnailRectOptions
@@ -68,7 +72,120 @@ export class VideoThumbnailRect extends Rect {
     }
 
     /**
- * Genera las miniaturas del video y las almacena en el array thumbnails
+     * Calculates the video aspect ratio
+     */
+    private async calculateVideoAspectRatio(): Promise<void> {
+        if (!this.videoFile) return;
+
+        try {
+            const source = this.videoFile instanceof File
+                ? new BlobSource(this.videoFile)
+                : new UrlSource(this.videoFile as string);
+
+            const input = new Input({
+                source: source!,
+                formats: ALL_FORMATS,
+            });
+
+            const videoTrack = await input.getPrimaryVideoTrack();
+            if (videoTrack) {
+                this.videoWidth = videoTrack.displayWidth;
+                this.videoHeight = videoTrack.displayHeight;
+                this.videoAspectRatio = this.videoWidth / this.videoHeight;
+            }
+        } catch (error) {
+            console.warn('⚠️ Could not calculate video aspect ratio, using default 16:9:', error);
+            this.videoAspectRatio = 16 / 9;
+        }
+    }
+
+    /**
+     * Calculates the optimal number of thumbnails based on rectangle width
+     */
+    private calculateOptimalThumbnailCount(): number {
+        const rectWidth = this.width || 0;
+        const rectHeight = this.height || 0;
+
+        if (rectWidth === 0 || rectHeight === 0) {
+            return 16; // Default value
+        }
+
+        // Calculate the width each thumbnail should have maintaining aspect ratio
+        const thumbnailHeight = rectHeight;
+        const thumbnailWidth = thumbnailHeight * this.videoAspectRatio;
+
+        // Calculate how many thumbnails fit in the available width
+        const optimalCount = Math.floor(rectWidth / thumbnailWidth);
+
+        // Ensure minimum of 1 and reasonable maximum
+        const minThumbnails = 1;
+        const maxThumbnails = Math.floor(rectWidth / 20); // Minimum 20px per thumbnail
+
+        const finalCount = Math.max(minThumbnails, Math.min(optimalCount, maxThumbnails));
+
+        return finalCount;
+    }
+
+    /**
+     * Creates a black thumbnail to use when a complete thumbnail doesn't fit
+     */
+    private createBlackThumbnail(width: number, height: number): HTMLCanvasElement {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            throw new Error('Could not get canvas context');
+        }
+
+        // Fill with solid black
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+
+        // Add subtle border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, width, height);
+
+        // Add indicator that it's an area without content
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('...', width / 2, height / 2);
+        ctx.textAlign = 'left';
+
+        console.log('🖤 Black thumbnail created:', { width, height });
+        return canvas;
+    }
+
+    /**
+     * Creates a black thumbnail if needed to fill remaining space
+     */
+    private createBlackThumbnailIfNeeded(): void {
+        const layout = this.getThumbnailLayout();
+        const { hasPartialThumbnail, remainingWidth, thumbHeight } = layout;
+
+        if (hasPartialThumbnail && remainingWidth > 0) {
+            // Create black thumbnail with remaining width
+            this.blackThumbnail = this.createBlackThumbnail(
+                Math.floor(remainingWidth * window.devicePixelRatio),
+                Math.floor(thumbHeight * window.devicePixelRatio)
+            );
+
+            console.log('🖤 Black thumbnail added for remaining space:', {
+                remainingWidth,
+                thumbHeight,
+                hasPartialThumbnail
+            });
+        } else {
+            // Clear black thumbnail if not needed
+            this.blackThumbnail = null;
+        }
+    }
+
+    /**
+     * Generates video thumbnails and stores them in the thumbnails array
  */
     async generateThumbnails(): Promise<void> {
         if (!this.videoFile) {
@@ -76,15 +193,16 @@ export class VideoThumbnailRect extends Rect {
             return;
         }
 
-        // Si ya está generando, esperar a que termine
+        // If already generating, wait for it to finish
         if (this.isGenerating && this.generationPromise) {
             return this.generationPromise;
         }
 
-        // Si ya tiene miniaturas, no regenerar
-        if (this.thumbnails.length > 0) {
-            return;
-        }
+        // Calculate video aspect ratio first
+        await this.calculateVideoAspectRatio();
+
+        // Calculate optimal number of thumbnails based on current width
+        this.thumbnailCount = this.calculateOptimalThumbnailCount();
 
         this.isGenerating = true;
         this.generationPromise = this._doGenerateThumbnails();
@@ -122,13 +240,14 @@ export class VideoThumbnailRect extends Rect {
                 throw new Error('Unable to decode the video track.');
             }
 
-            // Compute width and height of the thumbnails such that the larger dimension is equal to THUMBNAIL_SIZE
-            const width = videoTrack.displayWidth > videoTrack.displayHeight
-                ? this.thumbnailSize
-                : Math.floor(this.thumbnailSize * videoTrack.displayWidth / videoTrack.displayHeight);
-            const height = videoTrack.displayHeight > videoTrack.displayWidth
-                ? this.thumbnailSize
-                : Math.floor(this.thumbnailSize * videoTrack.displayHeight / videoTrack.displayWidth);
+            // Calculate thumbnail dimensions maintaining video aspect ratio
+            const rectHeight = this.height || 80;
+            const thumbnailHeight = rectHeight;
+            const thumbnailWidth = thumbnailHeight * this.videoAspectRatio;
+
+            // Use calculated dimensions for CanvasSink
+            const width = Math.floor(thumbnailWidth * window.devicePixelRatio);
+            const height = Math.floor(thumbnailHeight * window.devicePixelRatio);
 
             // Prepare the timestamps for the thumbnails, equally spaced between the first and last timestamp of the video
             const firstTimestamp = await videoTrack.getFirstTimestamp();
@@ -161,7 +280,10 @@ export class VideoThumbnailRect extends Rect {
                 i++;
             }
 
-            // Forzar el re-render del objeto para mostrar las miniaturas
+            // Create black thumbnail if needed
+            this.createBlackThumbnailIfNeeded();
+
+            // Force object re-render to show thumbnails
             this.set('dirty', true);
             if (this.canvas) {
                 this.canvas.requestRenderAll();
@@ -174,21 +296,21 @@ export class VideoThumbnailRect extends Rect {
     }
 
     /**
- * Obtiene las miniaturas generadas
+     * Gets the generated thumbnails
  */
     getThumbnails(): HTMLCanvasElement[] {
         return this.thumbnails;
     }
 
     /**
-     * Obtiene las miniaturas como base64
+     * Gets thumbnails as base64
      */
     getThumbnailsAsBase64(): string[] {
         return this.thumbnails.map(canvas => canvas.toDataURL('image/png', 0.8));
     }
 
     /**
-     * Obtiene las miniaturas con información detallada
+     * Gets thumbnails with detailed information
      */
     getThumbnailsWithInfo(): Array<{
         canvas: HTMLCanvasElement;
@@ -207,129 +329,218 @@ export class VideoThumbnailRect extends Rect {
     }
 
     /**
-     * Establece el archivo de video
+     * Sets the video file
      */
     setVideoFile(videoFile: File | string): void {
         this.videoFile = videoFile;
     }
 
     /**
-     * Obtiene el archivo de video actual
+     * Gets the current video file
      */
     getVideoFile(): File | string | null {
         return this.videoFile;
     }
 
     /**
-     * Establece el número de miniaturas a generar
+     * Sets the number of thumbnails to generate
      */
     setThumbnailCount(count: number): void {
         this.thumbnailCount = count;
     }
 
     /**
-     * Establece el tamaño de las miniaturas
+     * Sets the thumbnail size
      */
     setThumbnailSize(size: number): void {
         this.thumbnailSize = size;
     }
 
     /**
-     * Limpia las miniaturas generadas
+     * Clears generated thumbnails
      */
     clearThumbnails(): void {
         this.thumbnails = [];
+        this.blackThumbnail = null;
     }
 
     /**
-     * Actualiza el layout de las miniaturas sin regenerarlas desde el video
-     * Útil cuando se redimensiona el canvas
+     * Forces thumbnail regeneration with new size
+     */
+    public regenerateThumbnails(): void {
+        console.log('🔄 Forcing thumbnail regeneration...');
+        this.thumbnails = [];
+        this.generateThumbnails();
+    }
+
+    /**
+     * Checks if there's a black area at the end of the timeline
+     */
+    public hasBlackAreaAtEnd(): boolean {
+        const layout = this.getThumbnailLayout();
+        return layout.hasPartialThumbnail;
+    }
+
+    /**
+     * Gets the width of the black area at the end
+     */
+    public getBlackAreaWidth(): number {
+        const layout = this.getThumbnailLayout();
+        return layout.remainingWidth;
+    }
+
+    /**
+     * Updates thumbnail layout without regenerating from video
+     * Useful when canvas is resized
      */
     updateThumbnailLayout(): void {
         if (this.thumbnails.length === 0) {
             return;
         }
 
-        // Marcar como sucio para forzar el re-render
+        // Recalculate optimal number of thumbnails for new size
+        const newOptimalCount = this.calculateOptimalThumbnailCount();
+
+        // If optimal number changed significantly, regenerate thumbnails
+        if (Math.abs(newOptimalCount - this.thumbnailCount) > 2) {
+            console.log('🔄 Thumbnail count changed significantly, regenerating...', {
+                oldCount: this.thumbnailCount,
+                newCount: newOptimalCount
+            });
+
+            // Clear existing thumbnails and regenerate
+            this.thumbnails = [];
+            this.blackThumbnail = null;
+            this.thumbnailCount = newOptimalCount;
+            this.generateThumbnails();
+            return;
+        }
+
+        // Update black thumbnail if needed
+        this.createBlackThumbnailIfNeeded();
+
+        // Mark as dirty to force re-render
         this.set('dirty', true);
 
-        // Solicitar re-render del canvas
+        // Request canvas re-render
         if (this.canvas) {
             this.canvas.requestRenderAll();
         }
     }
 
     /**
-     * Obtiene información sobre las miniaturas actualmente visibles
+     * Gets information about currently visible thumbnails
      */
     getVisibleThumbnailsInfo(): {
         totalGenerated: number;
         currentlyVisible: number;
         thumbnailWidth: number;
         canvasWidth: number;
+        hasBlackArea: boolean;
+        blackAreaWidth: number;
     } {
         const layout = this.getThumbnailLayout();
         return {
             totalGenerated: this.thumbnails.length,
             currentlyVisible: layout.cols,
             thumbnailWidth: layout.thumbWidth,
-            canvasWidth: this.width || 0
+            canvasWidth: this.width || 0,
+            hasBlackArea: layout.hasPartialThumbnail,
+            blackAreaWidth: layout.remainingWidth
         };
     }
 
     /**
-     * Configura el layout de las miniaturas
+     * Configures thumbnail layout
      */
     private getThumbnailLayout() {
         const totalThumbnails = this.thumbnails.length;
-        if (totalThumbnails === 0) return { rows: 0, cols: 0, thumbWidth: 0, thumbHeight: 0 };
+        if (totalThumbnails === 0) return { rows: 0, cols: 0, thumbWidth: 0, thumbHeight: 0, hasPartialThumbnail: false, remainingWidth: 0 };
 
         const canvasWidth = this.width || 0;
-        const minThumbnailWidth = 20; // Ancho mínimo para cada miniatura
+        const canvasHeight = this.height || 0;
 
-        // Calcular cuántas miniaturas podemos mostrar basado en el ancho disponible
-        const maxThumbnails = Math.floor(canvasWidth / minThumbnailWidth);
-        console.log({ maxThumbnails });
+        if (canvasWidth === 0 || canvasHeight === 0) {
+            return { rows: 0, cols: 0, thumbWidth: 0, thumbHeight: 0, hasPartialThumbnail: false, remainingWidth: 0 };
+        }
+
+        // Calculate width each thumbnail should have maintaining aspect ratio
+        const thumbnailHeight = canvasHeight;
+        const thumbnailWidth = thumbnailHeight * this.videoAspectRatio;
+
+        // Calculate how many thumbnails fit completely in available width
+        const maxThumbnails = Math.floor(canvasWidth / thumbnailWidth);
         const cols = Math.min(totalThumbnails, maxThumbnails);
-        const rows = 1; // Una sola fila
+        const rows = 1; // Single row
 
-        const thumbWidth = canvasWidth / cols; // Dividir el ancho entre el número de miniaturas a mostrar
-        const thumbHeight = this.height || 0; // Usar toda la altura
+        // Calculate remaining width after placing complete thumbnails
+        const usedWidth = cols * thumbnailWidth;
+        const remainingWidth = canvasWidth - usedWidth;
 
-        return { rows, cols, thumbWidth, thumbHeight };
+        // Detect if there's remaining area where a complete thumbnail doesn't fit
+        // Only consider black area if:
+        // 1. There's remaining space
+        // 2. Space is less than complete thumbnail width
+        // 3. There are more available thumbnails that can't be shown
+        const hasPartialThumbnail = remainingWidth > 0 &&
+            remainingWidth < thumbnailWidth &&
+            cols < totalThumbnails &&
+            remainingWidth >= 10; // Minimum 10px to consider black area
+
+        // Use calculated width to maintain aspect ratio
+        const finalThumbWidth = thumbnailWidth;
+        const finalThumbHeight = thumbnailHeight;
+
+        return {
+            rows,
+            cols,
+            thumbWidth: finalThumbWidth,
+            thumbHeight: finalThumbHeight,
+            hasPartialThumbnail,
+            remainingWidth
+        };
     }
 
     /**
-     * Sobrescribe el método _render para dibujar las miniaturas dentro del objeto
+     * Overrides _render method to draw thumbnails inside the object
      */
     public _render(ctx: CanvasRenderingContext2D): void {
-        // Llamar al método _render del padre para dibujar el rectángulo base
-        super._render(ctx);
-
-        // Si no hay miniaturas, no dibujar nada más
+        // If no thumbnails, only draw base rectangle
         if (this.thumbnails.length === 0) {
+            super._render(ctx);
             return;
         }
 
-        // Guardar el estado del contexto
+        // Save context state
         ctx.save();
 
-        // Obtener las coordenadas absolutas del objeto en el canvas
+        // Get absolute coordinates of object in canvas
         const left = -this.width / 2; // top-left corner
         const top = -this.height / 2;  // top-left corner
         const width = this.width || 0;
         const height = this.height || 0;
 
-        // Crear un área de recorte
+        // Create clipping area
         ctx.beginPath();
         ctx.rect(left, top, width, height);
         ctx.clip();
 
-        // Obtener el layout de las miniaturas
+        // Get thumbnail layout
         const layout = this.getThumbnailLayout();
-        const { cols, thumbWidth, thumbHeight } = layout;
+        const { cols, thumbWidth, thumbHeight, hasPartialThumbnail, remainingWidth } = layout;
 
-        // Dibujar solo las miniaturas que caben en el ancho disponible
+        // Draw base rectangle background first
+        ctx.fillStyle = (this.fill as string) || 'rgba(55, 65, 81, 0.3)';
+        ctx.fillRect(left, top, width, height);
+
+        // Draw rectangle border
+        if (this.stroke) {
+            ctx.strokeStyle = this.stroke as string;
+            ctx.lineWidth = this.strokeWidth || 1;
+            ctx.strokeRect(left, top, width, height);
+        }
+
+        // Draw only thumbnails that fit completely in available width
         for (let i = 0; i < cols; i++) {
             const canvas = this.thumbnails[i];
             if (!canvas) continue;
@@ -339,7 +550,7 @@ export class VideoThumbnailRect extends Rect {
             const x = left + (col * thumbWidth);
             const y = top + (row * thumbHeight);
 
-            // Dibujar la miniatura
+            // Draw thumbnail maintaining aspect ratio
             ctx.drawImage(
                 canvas,
                 x,
@@ -348,12 +559,12 @@ export class VideoThumbnailRect extends Rect {
                 thumbHeight
             );
 
-            // Dibujar un borde sutil alrededor de cada miniatura
-            ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)'; // blue-500 con más opacidad
+            // Draw subtle border around each thumbnail
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)'; // blue-500 with more opacity
             ctx.lineWidth = 1;
             ctx.strokeRect(x, y, thumbWidth, thumbHeight);
 
-            // Dibujar el número de miniatura en la esquina
+            // Draw thumbnail number in corner
             ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
             ctx.fillRect(x + 2, y + 2, 20, 16);
 
@@ -362,7 +573,48 @@ export class VideoThumbnailRect extends Rect {
             ctx.fillText(`${i + 1}`, x + 6, y + 12);
         }
 
-        // Restaurar el estado del contexto
+        // If there's a black thumbnail, draw it at the end
+        if (this.blackThumbnail && hasPartialThumbnail && remainingWidth > 0) {
+            const usedWidth = cols * thumbWidth;
+            const blackAreaX = left + usedWidth;
+            const blackAreaY = top;
+            const blackAreaWidth = remainingWidth;
+            const blackAreaHeight = thumbHeight;
+
+            console.log('🖤 Drawing black thumbnail:', {
+                blackAreaX,
+                blackAreaY,
+                blackAreaWidth,
+                blackAreaHeight,
+                remainingWidth,
+                cols,
+                thumbWidth
+            });
+
+            // Draw black thumbnail
+            ctx.drawImage(
+                this.blackThumbnail,
+                blackAreaX,
+                blackAreaY,
+                blackAreaWidth,
+                blackAreaHeight
+            );
+
+            // Draw border to maintain visual consistency
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(blackAreaX, blackAreaY, blackAreaWidth, blackAreaHeight);
+
+            // Draw thumbnail number in corner (use "..." to indicate it's special)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(blackAreaX + 2, blackAreaY + 2, 20, 16);
+
+            ctx.fillStyle = 'white';
+            ctx.font = '10px Arial';
+            ctx.fillText('...', blackAreaX + 6, blackAreaY + 12);
+        }
+
+        // Restore context state
         ctx.restore();
     }
 }
