@@ -238,14 +238,31 @@ export function TimelineCanvas({
 
         {/* HTML Playhead */}
         <div
-          className="absolute top-2 bottom-2 w-px bg-red-500 pointer-events-none z-10"
+          className="absolute top-0 bottom-0 w-px bg-blue-500 pointer-events-none z-10"
           style={{
             left: `calc(${playheadPosition + playheadPositionCrop}px + 2px)`,
-            // transform: "translateX(50%)",
           }}
         >
-          {/* Playhead handle */}
-          <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
+          {/* Playhead handle - Triangle */}
+          <div
+            className="absolute -top-3 w-3 h-3 transform -translate-x-1/2"
+            style={{
+              borderRadius: "0 0 20px 20px",
+            }}
+          >
+            <svg
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              className="w-full h-full"
+            >
+              <path
+                fill="currentColor"
+                d="M11.6585 7.04881L6.6585 11.4238C6.28148 11.7537 5.71852 11.7537 5.3415 11.4238L0.341495 7.04881C0.12448 6.85892 0 6.58459 0 6.29623V1C0 0.447715 0.447715 0 1 0H11C11.5523 0 12 0.447715 12 1V6.29623C12 6.58459 11.8755 6.85892 11.6585 7.04881Z"
+                className="text-blue-500"
+              />
+            </svg>
+          </div>
         </div>
       </div>
     </div>

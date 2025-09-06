@@ -1,5 +1,5 @@
 import { Control, controlsUtils } from "fabric";
-import { drawVerticalLine } from "./draw";
+import { drawVerticalLeftIcon, drawVerticalRightIcon } from "./draw";
 import { changeWidth } from "./change-width";
 
 const { scaleSkewCursorStyleHandler } = controlsUtils;
@@ -8,7 +8,7 @@ export const createMediaControls = () => ({
   mr: new Control({
     x: 0.5,
     y: 0,
-    render: drawVerticalLine,
+    render: drawVerticalRightIcon,
     actionHandler: changeWidth,
     cursorStyleHandler: scaleSkewCursorStyleHandler,
     actionName: "resizing",
@@ -18,7 +18,7 @@ export const createMediaControls = () => ({
   ml: new Control({
     x: -0.5,
     y: 0,
-    render: drawVerticalLine,
+    render: drawVerticalLeftIcon,
     actionHandler: changeWidth,
     cursorStyleHandler: scaleSkewCursorStyleHandler,
     actionName: "resizing",
