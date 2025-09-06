@@ -13,13 +13,11 @@ export interface VideoThumbnailRectOptions {
     evented?: boolean;
     videoFile?: File | string;
     thumbnailCount?: number;
-    thumbnailSize?: number;
 }
 
 export class VideoThumbnailRect extends Rect {
     private videoFile: File | string | null = null;
     private thumbnailCount: number = 16;
-    private thumbnailSize: number = 200;
     private thumbnails: HTMLCanvasElement[] = [];
     private isGenerating: boolean = false;
     private generationPromise: Promise<void> | null = null;
@@ -53,7 +51,6 @@ export class VideoThumbnailRect extends Rect {
         this.evented = false;
         this.videoFile = options.videoFile || null;
         this.thumbnailCount = options.thumbnailCount || 16;
-        this.thumbnailSize = options.thumbnailSize || 200;
     }
 
     /**
@@ -347,13 +344,6 @@ export class VideoThumbnailRect extends Rect {
      */
     setThumbnailCount(count: number): void {
         this.thumbnailCount = count;
-    }
-
-    /**
-     * Sets the thumbnail size
-     */
-    setThumbnailSize(size: number): void {
-        this.thumbnailSize = size;
     }
 
     /**
